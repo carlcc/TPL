@@ -350,6 +350,11 @@ public:
         };
         auto spDeps = std::make_shared<DependencyContext>();
         spDeps->pendingDependencyCount = sizeof...(ParentTasks);
+        
+        // NOTE: Don't pass spDeps, or deps will always keeps it's deps references.
+        functor_ = [deps = spDeps.get(), functor = std::forward<Functor>(functor)]() -> ValueType {
+            return InvokeFunctionWithTuple(deps->dependencies, std::make_index_sequence<sizeof...(ParentTasks)> {}, functor);
+        };
 
         ForTupleAndArgs(
             spDeps->dependencies,
@@ -387,11 +392,6 @@ public:
                 }
             },
             parentTasks...);
-
-        // NOTE: Don't pass spDeps, or deps will always keeps it's deps references.
-        functor_ = [deps = spDeps.get(), functor = std::forward<Functor>(functor)]() -> ValueType {
-            return InvokeFunctionWithTuple(deps->dependencies, std::make_index_sequence<sizeof...(ParentTasks)> {}, functor);
-        };
     }
 
     TaskImpl(const TaskImpl&) = delete;
@@ -507,7 +507,7 @@ int main()
 {
     SleepFor(0);
     {
-        ParallelTaskScheduler scheduler(4);
+        ParallelTaskScheduler scheduler(1);
         Task<int> task5 {};
         {
             Task<int> task(
