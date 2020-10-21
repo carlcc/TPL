@@ -370,7 +370,11 @@ public:
 
                         if (--spDeps->pendingDependencyCount == 0) {
                             // do nothing, just keep spDeps(i.e. it's parents) not being destoryed, spDeps will be released after self becomes ready
-                            self->future_.InvokeOnValueAvailable([spDeps](const auto&) {});
+                            if constexpr (std::is_same_v<ValueType, void>) {
+                                self->future_.InvokeOnValueAvailable([spDeps]() {});
+                            } else {
+                                self->future_.InvokeOnValueAvailable([spDeps](const auto&) {});
+                            } 
                             // i.e. The reference count of self will be released,
                             // but we schedule self before returning
                             // thus the background worker task a reference of self
@@ -384,7 +388,11 @@ public:
 
                         if (--spDeps->pendingDependencyCount == 0) {
                             // see above
-                            self->future_.InvokeOnValueAvailable([spDeps](const auto&) {});
+                            if constexpr (std::is_same_v<ValueType, void>) {
+                                self->future_.InvokeOnValueAvailable([spDeps]() {});
+                            } else {
+                                self->future_.InvokeOnValueAvailable([spDeps](const auto&) {});
+                            } 
                             // See above
                             self->Start();
                         }
@@ -503,11 +511,84 @@ void foo(int, float, double)
     std::cout << " ---" << std::endl;
 }
 
+class CustomScheduler : public ITaskScheduler {
+public:
+    void Schedule(const std::function<void()>& functor) override
+    {
+        {
+            std::unique_lock<std::mutex> lck(queueMutex_);
+            taskQueue_.push(functor);
+        }
+        queueCv_.notify_one();
+    }
+
+    void Loop()
+    {
+        isRunning_ = true;
+        while (true) {
+            std::function<void()> functor { nullptr };
+            {
+                std::unique_lock<std::mutex> lck(queueMutex_);
+                queueCv_.wait(lck, [this]() {
+                    return taskQueue_.size() > 0 || !isRunning_;
+                });
+                if (!isRunning_ && taskQueue_.size() == 0) {
+                    break;
+                }
+                functor = taskQueue_.front();
+                taskQueue_.pop();
+            }
+            assert(functor != nullptr);
+            functor();
+        }
+    }
+
+    std::mutex queueMutex_;
+    std::condition_variable queueCv_;
+    std::queue<std::function<void()>> taskQueue_;
+    bool isRunning_ { false };
+};
+
+void Task1Cb()
+{
+    LOG << "Start Task1 " << std::endl;
+    SleepFor(1000);
+    LOG << "End Task1 " << std::endl;
+}
+
+void Task2Cb()
+{
+    LOG << "Start Task2 " << std::endl;
+    SleepFor(1000);
+    LOG << "End Task2 " << std::endl;
+}
+ParallelTaskScheduler scheduler(8);
+CustomScheduler scheduler2;
+
+void Task3Cb(const Task<void>& t1, const Task<void>& t2)
+{
+    LOG << "Task3 Start" << std::endl;
+    auto task1 = MakeTask(Task1Cb, &scheduler);
+    auto task2 = MakeTask(Task2Cb, &scheduler);
+    auto task3 = MakeTask(Task3Cb, &scheduler2, task1, task2);
+    task1.Start();
+    task2.Start();
+    LOG << "Task3 End" << std::endl;
+}
+
+void test2()
+{
+    Task3Cb({}, {});
+
+    scheduler2.Loop();
+}
+
 int main()
 {
     SleepFor(0);
+    test2();
     {
-        ParallelTaskScheduler scheduler(1);
+        ParallelTaskScheduler scheduler(8);
         Task<int> task5 {};
         {
             Task<int> task(
