@@ -4,71 +4,46 @@
 
 #pragma once
 
-#include <atomic>
-#include <cassert>
-
-struct RefCounted {
-    std::atomic_int refCount { 0 };
-    virtual ~RefCounted() = default;
-
-    void AddRef()
-    {
-        assert(refCount >= 0);
-        ++refCount;
-    }
-
-    void Release()
-    {
-        assert(refCount > 0);
-        if (--refCount == 0) {
-            Delete(this);
-        }
-    }
-
-    static void Delete(RefCounted* obj)
-    {
-        delete obj;
-    }
-};
+namespace tpl {
 
 template <class Type>
-struct RefCountGuard {
+struct RefCntAutoPtr {
     using PointerType = Type*;
 
-    RefCountGuard()
+    RefCntAutoPtr()
         : ref_ { nullptr }
     {
     }
 
-    RefCountGuard(Type* ref)
+    RefCntAutoPtr(Type* ref)
         : ref_ { ref }
     {
         AddRef();
     }
 
-    RefCountGuard(decltype(nullptr))
+    RefCntAutoPtr(decltype(nullptr))
         : ref_(nullptr)
     {
     }
 
-    ~RefCountGuard()
+    ~RefCntAutoPtr()
     {
         Release();
     }
 
-    RefCountGuard(const RefCountGuard& ref)
+    RefCntAutoPtr(const RefCntAutoPtr& ref)
     {
         ref_ = ref.ref_;
         AddRef();
     }
 
-    RefCountGuard(RefCountGuard&& ref) noexcept
+    RefCntAutoPtr(RefCntAutoPtr&& ref) noexcept
         : ref_(ref.ref_)
     {
         ref.ref_ = nullptr;
     }
 
-    RefCountGuard& operator=(Type* ref)
+    RefCntAutoPtr& operator=(Type* ref)
     {
         if (ref_ != ref) {
             Release();
@@ -78,7 +53,7 @@ struct RefCountGuard {
         return *this;
     }
 
-    RefCountGuard& operator=(decltype(nullptr))
+    RefCntAutoPtr& operator=(decltype(nullptr))
     {
         if (ref_ != nullptr) {
             ref_->Release();
@@ -87,7 +62,7 @@ struct RefCountGuard {
         return *this;
     }
 
-    RefCountGuard& operator=(const RefCountGuard& ref)
+    RefCntAutoPtr& operator=(const RefCntAutoPtr& ref)
     {
         if (ref_ != ref.ref_) {
             Release();
@@ -97,9 +72,13 @@ struct RefCountGuard {
         return *this;
     }
 
-    RefCountGuard& operator=(RefCountGuard&& ref) noexcept
+    RefCntAutoPtr& operator=(RefCntAutoPtr&& ref) noexcept
     {
-        std::swap(ref.ref_, ref_);
+        if (ref.ref_ != ref_) {
+            Release();
+            ref_ = ref.ref_;
+            ref.ref_ = nullptr;
+        }
         return *this;
     }
 
@@ -110,6 +89,10 @@ struct RefCountGuard {
     Type* Get() const { return ref_; }
 
     operator Type*() const noexcept { return ref_; }
+
+    bool operator!() const { return ref_ == nullptr; }
+
+    operator bool() const noexcept { return ref_ != nullptr; }
 
 private:
     void Release()
@@ -129,3 +112,5 @@ private:
 private:
     Type* ref_ { nullptr };
 };
+
+}

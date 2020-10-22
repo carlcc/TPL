@@ -12,19 +12,7 @@
 #include <thread>
 #include <vector>
 
-
-int64_t CurrentTime()
-{
-    using namespace std::chrono;
-    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-}
-
-int64_t AppTime()
-{
-    static int64_t StartTime = CurrentTime();
-    return CurrentTime() - StartTime;
-}
-#define LOG std::cout << std::this_thread::get_id() << ":" << __FILE__ << ":" << __LINE__ << ":time[" << AppTime() << "]: "
+namespace tpl {
 
 class ITaskScheduler {
 public:
@@ -111,14 +99,16 @@ private:
     bool isRunning_ { false };
 };
 
-ITaskScheduler* gDefaultTaskScheduler { nullptr };
+extern ITaskScheduler* gDefaultTaskScheduler;
 
-void SetDefaultTaskScheduler(ITaskScheduler* scheduler)
+inline void SetDefaultTaskScheduler(ITaskScheduler* scheduler)
 {
     gDefaultTaskScheduler = scheduler;
 }
 
-ITaskScheduler* GetDefaultTaskScheduler()
+inline ITaskScheduler* GetDefaultTaskScheduler()
 {
     return gDefaultTaskScheduler;
+}
+
 }

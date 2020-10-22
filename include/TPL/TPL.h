@@ -3,3 +3,8 @@
 //
 
 #pragma once
+
+#include "RefCntAutoPtr.h"
+#include "RefCounted.h"
+#include "Scheduler.h"
+#include "Task.h"
