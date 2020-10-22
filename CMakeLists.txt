@@ -7,7 +7,9 @@ file(GLOB_RECURSE TPL_SOURCE include/* src/*)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CXX_FLAGS -Wall)
+if (NOT MSVC)
+    set(CMAKE_CXX_FLAGS -Wall)
+endif()
 
 add_library(TPL STATIC ${TPL_SOURCE})
 target_include_directories(TPL
