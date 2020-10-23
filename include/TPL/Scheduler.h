@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <condition_variable>
 #include <functional>
 #include <iostream>
@@ -23,7 +24,19 @@ public:
 
 class ParallelTaskScheduler final : public ITaskScheduler {
 public:
-    explicit ParallelTaskScheduler(size_t numThreads)
+    ParallelTaskScheduler()
+    {
+        workerThreads_.resize(std::thread::hardware_concurrency());
+
+        isRunning_ = true;
+        for (auto& th : workerThreads_) {
+            th = std::thread([this]() {
+                WorkerThreadRoutine();
+            });
+        }
+    }
+
+    ParallelTaskScheduler(size_t numThreads)
     {
         assert(numThreads > 0); // Ensure the thread number > 0
         workerThreads_.resize(numThreads);

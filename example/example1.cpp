@@ -19,7 +19,38 @@ int64_t AppTime()
     static int64_t StartTime = CurrentTime();
     return CurrentTime() - StartTime;
 }
-#define LOG std::cout << std::this_thread::get_id() << ":" << __FILE__ << ":" << __LINE__ << ":time[" << AppTime() << "]: "
+
+std::mutex gLoggerMutex;
+
+class MyLogger {
+public:
+    MyLogger(std::ostream& os, const char* file, int line)
+        : os_ { os }
+        , file_ { file }
+        , line_(line)
+    {
+        gLoggerMutex.lock();
+        os_ << std::this_thread::get_id() << ":time[" << AppTime() << "]: ";
+    }
+    ~MyLogger()
+    {
+        os_ << " \t(" << file_ << ":" << line_ << ")" << std::endl;
+        gLoggerMutex.unlock();
+    }
+    template <class T>
+    inline MyLogger& operator<<(const T& t)
+    {
+        os_ << t;
+        return *this;
+    }
+
+    std::ostream& os_;
+    const char* file_;
+    int line_;
+};
+
+#define LOG MyLogger(std::cout, __FILE__, __LINE__)
+
 void SleepFor(int millis)
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(millis));
@@ -83,26 +114,26 @@ public:
 
     void Task1Cb()
     {
-        LOG << kTask1Name << " started" << std::endl;
+        LOG << kTask1Name << " started";
         SleepFor(1000);
     }
 
     void Task2Cb()
     {
-        LOG << kTask2Name << " started" << std::endl;
+        LOG << kTask2Name << " started";
         SleepFor(1000);
     }
 
     void Task4Cb(const tpl::Task<void>& t1, const tpl::Task<void>& t2)
     {
-        LOG << "Task4 started" << std::endl;
+        LOG << "Task4 started";
     }
 
     int loopTimes { 0 };
     void Task3Cb(const tpl::Task<void>& t1, const tpl::Task<void>& t2)
     {
         if (t1.Valid()) {
-            LOG << "Precede tasks: " << t1.GetName() << ", " << t2.GetName() << " finished. " << kTask3Name << " Start" << std::endl;
+            LOG << "Precede tasks: " << t1.GetName() << ", " << t2.GetName() << " finished. " << kTask3Name << " Start";
         }
         if (loopTimes-- == 0) {
             scheduler2.Stop();
@@ -127,12 +158,10 @@ public:
     }
 };
 
-int main()
-{
-    SleepFor(0);
-    Test2 test2;
-    test2.test2(3);
+class Test1 {
+public:
 
+    void test1()
     {
         tpl::ParallelTaskScheduler scheduler(8);
         tpl::Task<int> task5 {};
@@ -140,33 +169,33 @@ int main()
             tpl::Task<int> task(
                 []() {
                     SleepFor(1000);
-                    LOG << "Task1 " << std::endl;
+                    LOG << "Task1 ";
                     return 1;
                 },
                 scheduler);
             tpl::Task<float> task2(
                 []() {
                     SleepFor(2000);
-                    LOG << "Task2 " << std::endl;
+                    LOG << "Task2 ";
                     return 3.4f;
                 },
                 scheduler);
             tpl::Task<void> task3(
                 []() {
                     SleepFor(500);
-                    LOG << "Task3 " << std::endl;
+                    LOG << "Task3 ";
                 },
                 scheduler);
 
             tpl::Task<int> task4(
                 [](const tpl::Task<int>& a, const tpl::Task<float>& b, const tpl::Task<void>& c) -> int {
-                    LOG << "Task 4, value: " << a.GetFuture().GetValue() << ", " << b.GetFuture().GetValue() << std::endl;
+                    LOG << "Task 4, value: " << a.GetFuture().GetValue() << ", " << b.GetFuture().GetValue();
                     return 2;
                 },
                 scheduler, task, task2, task3);
             task5 = task4.Then(
                 [](const tpl::Task<int>& a) -> int {
-                    LOG << "Task 5, value: " << a.GetFuture().GetValue() << std::endl;
+                    LOG << "Task 5, value: " << a.GetFuture().GetValue();
                     SleepFor(3000);
                     return 2;
                 });
@@ -176,9 +205,61 @@ int main()
         }
 
         auto result = task5.GetFuture().GetValue();
-        LOG << "Result is: " << result << std::endl;
+        LOG << "Result is: " << result;
+    }
+};
+
+class TestUnwrap {
+public:
+    tpl::ParallelTaskScheduler scheduler;
+
+    void test()
+    {
+        tpl::Task<tpl::Task<std::string>> task = tpl::MakeTask(
+            [this]() {
+                tpl::Task<std::string> wrappedTask = tpl::MakeTask(
+                    [this]() -> std::string {
+                        SleepFor(1000);
+                        return "Hello from inner task";
+                    },
+                    &scheduler);
+                wrappedTask.Start();
+                return wrappedTask;
+            },
+            &scheduler);
+        task.Start();
+        auto afterInnerTaskReturn = task.Unwrap(&scheduler).Then([](const tpl::Task<std::string>& innerTask) {
+            LOG << "Then message from inner task is: " << innerTask.GetFuture().GetValue();
+            return 100;
+        });
+
+        LOG << "Waiting for tasks";
+        auto& fut = afterInnerTaskReturn.GetFuture();
+        fut.Wait();
+        LOG << "After inner task return, we get " << fut.GetValue();
+    }
+};
+
+int main()
+{
+    SleepFor(0);
+    {
+        LOG << "===== Start test1";
+        Test1 test1;
+        test1.test1();
+    }
+    {
+        LOG << "===== Start test2";
+        Test2 test2;
+        test2.test2(3);
+    }
+    {
+        LOG << "===== Start unwrap test";
+        TestUnwrap().test();
     }
 
-    LOG << "End" << std::endl;
+    
+
+    LOG << "End";
     return 0;
 }

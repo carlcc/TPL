@@ -58,6 +58,15 @@ public:
     template <class Functor>
     auto Then(Functor&& functor, ITaskScheduler* scheduler = nullptr);
 
+    /// Unwrap function create a proxy task that represents asynchronous operation of Task<Task<T>>.
+    /// i.e. A Task<Task<T>>::Unrap returns a Task<T> object
+    auto Unwrap(ITaskScheduler* scheduler) -> typename ValueType;
+
+#if !defined(NDEBUG)
+private:
+    void MarkAsStarted();
+#endif
+
 private:
     RefCntAutoPtr<internal::TaskImpl<T>> impl_ { nullptr };
 

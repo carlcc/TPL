@@ -13,7 +13,7 @@ namespace tpl {
 namespace detail {
 
     template <int n, class Arg, class... Args>
-    auto&& NthArg(Arg&& arg, Args&&... args)
+    inline auto&& NthArg(Arg&& arg, Args&&... args)
     {
         if constexpr (n == 0) {
             return arg;
@@ -23,13 +23,13 @@ namespace detail {
     }
 
     template <class Tuple, typename T, T... S, typename F, class... Args>
-    constexpr void ForTupleAndArgs(Tuple& tuple, std::integer_sequence<T, S...>, F&& f, Args&&... args)
+    inline constexpr void ForTupleAndArgs(Tuple& tuple, std::integer_sequence<T, S...>, F&& f, Args&&... args)
     {
         (void)std::vector<bool> { (static_cast<void>(f(std::get<std::integral_constant<T, S>::value>(tuple), NthArg<std::integral_constant<T, S>::value>(args...))), true)... };
     }
 
     template <class Tuple, class T, T... S, class F>
-    constexpr auto InvokeFunctionWithTuple(Tuple& tuple, std::integer_sequence<T, S...>, F&& functor)
+    inline constexpr auto InvokeFunctionWithTuple(Tuple& tuple, std::integer_sequence<T, S...>, F&& functor)
     {
         return functor(MakeTaskFromImpl(std::get<std::integral_constant<T, S>::value>(tuple).Get())...);
     }
@@ -69,6 +69,17 @@ namespace internal {
 
         void SetName(std::string&& name) { name_ = std::move(name); }
 
+#if !defined(NDEBUG)
+    private:
+        void MarkAsStarted()
+        {
+            assert(!isStarted_);
+            isStarted_ = true;
+        }
+
+        friend class Task<ValueType>;
+#endif
+
     protected:
         Future<ValueType> future_ {};
         std::function<ValueType()> functor_ { nullptr };
@@ -83,11 +94,11 @@ namespace internal {
     };
 
     template <class Functor, class... ParentTasks>
-    auto MakeTaskImpl(Functor&& functor, ITaskScheduler& scheduler, ParentTasks*... parentTasks);
+    inline auto MakeTaskImpl(Functor&& functor, ITaskScheduler& scheduler, ParentTasks*... parentTasks);
 
     template <class T>
     template <class Functor>
-    TaskImpl<T>::TaskImpl(Functor&& functor, ITaskScheduler& scheduler)
+    inline TaskImpl<T>::TaskImpl(Functor&& functor, ITaskScheduler& scheduler)
         : functor_ { std::forward<Functor>(functor) }
         , scheduler_ { &scheduler }
     {
@@ -96,7 +107,7 @@ namespace internal {
 
     template <class T>
     template <class Functor, class... ParentTasks>
-    TaskImpl<T>::TaskImpl(Functor&& functor, ITaskScheduler& scheduler, ParentTasks*... parentTasks)
+    inline TaskImpl<T>::TaskImpl(Functor&& functor, ITaskScheduler& scheduler, ParentTasks*... parentTasks)
         : functor_ { nullptr }
         , scheduler_ { &scheduler }
     {
@@ -165,16 +176,15 @@ namespace internal {
     }
 
     template <class T>
-    TaskImpl<T>::~TaskImpl()
+    inline TaskImpl<T>::~TaskImpl()
     {
     }
 
     template <class T>
-    void TaskImpl<T>::Start()
+    inline void TaskImpl<T>::Start()
     {
 #if !defined(NDEBUG)
-        assert(!isStarted_);
-        isStarted_ = true;
+        MarkAsStarted();
 #endif
         scheduler_->Schedule([self = RefCntAutoPtr(this)]() mutable {
             if constexpr (std::is_same_v<void, ValueType>) {
@@ -187,7 +197,7 @@ namespace internal {
     }
 
     template <class Functor, class... ParentTasks>
-    auto MakeTaskImpl(Functor&& functor, ITaskScheduler& scheduler, ParentTasks*... parentTasks)
+    inline auto MakeTaskImpl(Functor&& functor, ITaskScheduler& scheduler, ParentTasks*... parentTasks)
     {
         using ValueType = decltype(functor(MakeTaskFromImpl(parentTasks)...));
         using ResultTaskType = TaskImpl<ValueType>;
@@ -199,52 +209,88 @@ namespace internal {
 //========== Task
 template <class T>
 template <class Functor, class... ParentTasks>
-Task<T>::Task(Functor&& functor, ITaskScheduler& scheduler, const ParentTasks&... parentTasks)
+inline Task<T>::Task(Functor&& functor, ITaskScheduler& scheduler, const ParentTasks&... parentTasks)
     : impl_ { internal::MakeTaskImpl(std::forward<Functor>(functor), scheduler, parentTasks.impl_.Get()...) }
 {
 }
 
 template <class T>
-bool Task<T>::Valid() const
+inline bool Task<T>::Valid() const
 {
     return impl_ != nullptr;
 }
 
 template <class T>
-void Task<T>::Start() { impl_->Start(); }
+inline void Task<T>::Start() { impl_->Start(); }
 
 template <class T>
-auto& Task<T>::GetFuture() const { return impl_->GetFuture(); }
+inline auto& Task<T>::GetFuture() const { return impl_->GetFuture(); }
 
 template <class T>
-const std::string& Task<T>::GetName() const { return impl_->GetName(); }
+inline const std::string& Task<T>::GetName() const { return impl_->GetName(); }
 
 template <class T>
-void Task<T>::SetName(const std::string& name) { impl_->SetName(name); }
+inline void Task<T>::SetName(const std::string& name) { impl_->SetName(name); }
 
 template <class T>
-void Task<T>::SetName(std::string&& name) { impl_->SetName(std::move(name)); }
+inline void Task<T>::SetName(std::string&& name) { impl_->SetName(std::move(name)); }
 
 template <class T>
-Task<T>::Task(internal::TaskImpl<T>* impl)
+inline Task<T>::Task(internal::TaskImpl<T>* impl)
     : impl_(impl)
 {
 }
 
 template <class T>
 template <class Functor>
-auto Task<T>::Then(Functor&& functor, ITaskScheduler* scheduler)
+inline auto Task<T>::Then(Functor&& functor, ITaskScheduler* scheduler)
 {
     if (scheduler == nullptr) {
         scheduler = GetScheduler();
     }
     return MakeTask(functor, scheduler, *this);
 }
+
 template <class T>
-ITaskScheduler* Task<T>::GetScheduler() const { return impl_->GetScheduler(); }
+inline auto Task<T>::Unwrap(ITaskScheduler* scheduler) -> ValueType
+{
+    using UnwrappedValueType = typename ValueType::ValueType;
+    using UnwrappedTask = Task<UnwrappedValueType>;
+    static_assert(std::is_same_v<ValueType, UnwrappedTask>, "Unwrap function only available in embeded Task classes");
+    if (scheduler == nullptr) {
+        scheduler = gDefaultTaskScheduler;
+        assert(scheduler != nullptr); // "Did you forget to specify a scheduler?"
+    }
+    using CallbackType = std::function<UnwrappedValueType()>;
+    UnwrappedTask proxyTask(CallbackType(nullptr), *scheduler); // This task will actually not be executed, so just keep the callback null
+#if !defined(NDEBUG)
+    proxyTask.MarkAsStarted();
+#endif
+    // Here, this.future_ can't be a future of void
+    GetFuture().InvokeOnValueAvailable([proxyTask](const UnwrappedTask& innerTask) {
+        innerTask.GetFuture().InvokeOnValueAvailable([proxyTask](const UnwrappedValueType& value) {
+            const_cast<Future<UnwrappedValueType>&>(proxyTask.GetFuture()).SetValue(value);
+        });
+    });
+    return proxyTask;
+}
+
+#if !defined(NDEBUG)
+template <class T>
+inline void tpl::Task<T>::MarkAsStarted()
+{
+    impl_->MarkAsStarted();
+}
+#endif
+
+template <class T>
+inline ITaskScheduler* Task<T>::GetScheduler() const
+{
+    return impl_->GetScheduler();
+}
 
 template <class Functor, class... ParentTasks>
-auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentTasks&... parentTasks)
+inline auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentTasks&... parentTasks)
 {
     using ValueType = decltype(functor(parentTasks...));
     using ResultTaskType = Task<ValueType>;
@@ -256,7 +302,7 @@ auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentTasks&..
 }
 
 template <class ImplType>
-Task<typename ImplType::ValueType> MakeTaskFromImpl(ImplType* impl)
+inline Task<typename ImplType::ValueType> MakeTaskFromImpl(ImplType* impl)
 {
     using ValueType = typename ImplType::ValueType;
     return Task<ValueType>(impl);
