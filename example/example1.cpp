@@ -215,7 +215,8 @@ public:
 
     void test()
     {
-        tpl::Task<tpl::Task<std::string>> task = tpl::MakeTask(
+        // clang-format off
+        auto afterInnerTaskReturn = tpl::MakeTaskAndStart(
             [this]() {
                 tpl::Task<std::string> wrappedTask = tpl::MakeTask(
                     [this]() -> std::string {
@@ -226,12 +227,14 @@ public:
                 wrappedTask.Start();
                 return wrappedTask;
             },
-            &scheduler);
-        task.Start();
-        auto afterInnerTaskReturn = task.Unwrap(&scheduler).Then([](const tpl::Task<std::string>& innerTask) {
-            LOG << "Then message from inner task is: " << innerTask.GetFuture().GetValue();
-            return 100;
-        });
+            &scheduler
+        ).Unwrap().Then(
+            [](const tpl::Task<std::string>& innerTask) {
+                LOG << "Then message from inner task is: " << innerTask.GetFuture().GetValue();
+                return 100;
+            }
+        );
+        // clang-format on
 
         LOG << "Waiting for tasks";
         auto& fut = afterInnerTaskReturn.GetFuture();

@@ -60,7 +60,11 @@ public:
 
     /// Unwrap function create a proxy task that represents asynchronous operation of Task<Task<T>>.
     /// i.e. A Task<Task<T>>::Unrap returns a Task<T> object
+    /// If scheduler == nullptr, then the default scheduler will be set
     auto Unwrap(ITaskScheduler* scheduler) -> typename ValueType;
+
+    /// Note: this the new task will use the scheduler of this task
+    auto Unwrap() -> typename ValueType;
 
 #if !defined(NDEBUG)
 private:
@@ -79,6 +83,9 @@ private:
 
 template <class Functor, class... ParentTasks>
 auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentTasks&... parentTasks);
+
+template <class Functor>
+auto MakeTaskAndStart(Functor&& functor, ITaskScheduler* scheduler);
 
 }
 

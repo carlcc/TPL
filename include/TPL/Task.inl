@@ -275,6 +275,12 @@ inline auto Task<T>::Unwrap(ITaskScheduler* scheduler) -> ValueType
     return proxyTask;
 }
 
+template <class T>
+inline auto Task<T>::Unwrap() -> typename ValueType
+{
+    return Unwrap(GetScheduler());
+}
+
 #if !defined(NDEBUG)
 template <class T>
 inline void tpl::Task<T>::MarkAsStarted()
@@ -299,6 +305,14 @@ inline auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentT
         assert(scheduler != nullptr); // "Did you forget to specify a scheduler?"
     }
     return ResultTaskType(functor, *scheduler, parentTasks...);
+}
+
+template <class Functor>
+auto MakeTaskAndStart(Functor&& functor, ITaskScheduler* scheduler)
+{
+    auto task = MakeTask(std::forward<Functor>(functor), scheduler);
+    task.Start();
+    return task;
 }
 
 template <class ImplType>
