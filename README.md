@@ -4,7 +4,7 @@
 
 The full name of TPL is Task Parallel Library, which is named after the `Task Parallel Library` of C#.
 
-As the name implies, this library is used to write parallel pattern code. It make your life easier when writing multithreaded code.
+As the name implies, this library is used to write parallel pattern code. It makes your life easier when writing parallel code.
 
 
 ## 2. Features
