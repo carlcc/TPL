@@ -17,7 +17,7 @@ As the name implies, this library is used to write parallel pattern code. It mak
 - Automatic callback type check in compile time.
 - A simple parallel scheduler is provided.
 - Custom task schdulers are supported.
-- Each background task may have different
+- Each background task may have different schdulers.
 
 ## 3. Show me the code
 
