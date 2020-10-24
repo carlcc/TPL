@@ -25,6 +25,8 @@ As the name implies, this library is used to write parallel pattern code. It mak
 
 **NOTE2**: Don't manually invoke the `Start` function unless the corresponding task has no precede.
 
+The runnable code can be found in `example/example1.cpp` in this repository.
+
 ### 3.1. Example1: Basic usage
 
 The following code does:
@@ -92,7 +94,7 @@ Task 5, value: 2
 Result is: 2
 ```
 
-### 3.3. Example1: Unwrap semantic
+### 3.2. Example2: Unwrap semantic
 
 The following code does:
 
