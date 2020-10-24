@@ -96,14 +96,20 @@ Result is: 2
 
 The following code does:
 
-1. 
+1. Execute a task in background (denoted as Task1).
+
+2. The task1 executes another asynchronous API, which will return "Hello from inner task" 1 seoncd late. (denoted as Task2)
+
+3. Print the result after Task2 returns. (demoted as Task3)
+
+4. The main thread waits untill `Task3` done.
 
 ```C++
 auto afterInnerTaskReturn = tpl::MakeTaskAndStart(
-    [this]() {
+    [this]() { // Task1
         // This is another sync operation
         tpl::Task<std::string> wrappedTask = tpl::MakeTask(
-            [this]() -> std::string {
+            [this]() -> std::string { // Task2
                 SleepFor(1000);
                 return "Hello from inner task";
             },
@@ -115,7 +121,7 @@ auto afterInnerTaskReturn = tpl::MakeTaskAndStart(
 ) // <---- Here, the origianl return value's type is Task<type of wrapperTask>
 .Unwrap() // <---- Create a proxy task, you can think of the returned task is the wrappedTask above (Position 1). It's a proxy task because the wrappedTask is likely not available yet
 .Then( // <---- This task will be executed after wrappedTask (Position 1) done.
-    [](const tpl::Task<std::string>& innerTask) {
+    [](const tpl::Task<std::string>& innerTask) { // Task3
         LOG << "Then message from inner task is: " << innerTask.GetFuture().GetValue();
         return 100;
     }
@@ -137,10 +143,10 @@ After inner task return, we get 100
 
 ## 4. TODO
 
--[] Exception support
+- [ ] Exception support
 
--[] Cancellation support
+- [ ] Cancellation support
 
--[] Concept support (if C++20 available)
+- [ ] Concept support (if C++20 available)
 
--[] co_await operator support (if C++20 avalable)
+- [ ] co_await operator support (if C++20 avalable)
