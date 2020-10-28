@@ -21,6 +21,8 @@ namespace internal {
 
 template <class T>
 class Task {
+    static_assert(std::is_same_v<T, std::decay_t<T>>, "The parameter of Task class should be a type name with no qualifier");
+
 public:
     using ValueType = T;
 
@@ -82,11 +84,13 @@ private:
 };
 
 template <class Functor, class... ParentTasks>
-auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentTasks&... parentTasks);
+inline auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentTasks&... parentTasks);
 
 template <class Functor>
-auto MakeTaskAndStart(Functor&& functor, ITaskScheduler* scheduler);
+inline auto MakeTaskAndStart(Functor&& functor, ITaskScheduler* scheduler);
 
+template <class ValueType>
+inline auto MakeTaskFromValue(ValueType&& value, ITaskScheduler* scheduler);
 }
 
 #include "Task.inl"

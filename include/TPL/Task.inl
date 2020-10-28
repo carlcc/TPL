@@ -18,7 +18,7 @@ namespace detail {
         if constexpr (n == 0) {
             return arg;
         } else {
-            return NthArg<n - 1, Args...>(args...);
+            return NthArg<n - 1, Args...>(std::forward<Args>(args)...);
         }
     }
 
@@ -210,8 +210,15 @@ namespace internal {
 template <class T>
 template <class Functor, class... ParentTasks>
 inline Task<T>::Task(Functor&& functor, ITaskScheduler& scheduler, const ParentTasks&... parentTasks)
-    : impl_ { internal::MakeTaskImpl(std::forward<Functor>(functor), scheduler, parentTasks.impl_.Get()...) }
+    : impl_ { nullptr }
 {
+    // The `Functor` is a value
+    if constexpr (std::is_same_v<std::decay_t<Functor>, ValueType>) {
+        static_assert(sizeof...(ParentTasks) == 0, "Make task from value should have no parent task");
+        impl_ = internal::MakeTaskImpl(std::function<ValueType()>(nullptr), scheduler);
+    } else {
+        impl_ = internal::MakeTaskImpl(std::forward<Functor>(functor), scheduler, parentTasks.impl_.Get()...);
+    }
 }
 
 template <class T>
@@ -310,8 +317,19 @@ inline auto MakeTask(Functor&& functor, ITaskScheduler* scheduler, const ParentT
 template <class Functor>
 auto MakeTaskAndStart(Functor&& functor, ITaskScheduler* scheduler)
 {
+    if (scheduler == nullptr) {
+        scheduler = gDefaultTaskScheduler;
+        assert(scheduler != nullptr); // "Did you forget to specify a scheduler?"
+    }
     auto task = MakeTask(std::forward<Functor>(functor), scheduler);
     task.Start();
+    return task;
+}
+
+template <class ValueType>
+auto MakeTaskFromValue(ValueType&& value, ITaskScheduler* scheduler)
+{
+    Task<std::decay_t<ValueType>> task(std::forward<ValueType>(value), *scheduler);
     return task;
 }
 
