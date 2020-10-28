@@ -216,6 +216,10 @@ inline Task<T>::Task(Functor&& functor, ITaskScheduler& scheduler, const ParentT
     if constexpr (std::is_same_v<std::decay_t<Functor>, ValueType>) {
         static_assert(sizeof...(ParentTasks) == 0, "Make task from value should have no parent task");
         impl_ = internal::MakeTaskImpl(std::function<ValueType()>(nullptr), scheduler);
+#if !defined(NDEBUG)
+        MarkAsStarted();
+#endif
+        const_cast<Future<ValueType>&>(GetFuture()).SetValue(std::forward<Functor>(functor));
     } else {
         impl_ = internal::MakeTaskImpl(std::forward<Functor>(functor), scheduler, parentTasks.impl_.Get()...);
     }
