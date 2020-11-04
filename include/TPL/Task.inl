@@ -138,7 +138,7 @@ namespace internal {
                     parent->GetFuture().InvokeOnValueAvailable([spDeps, &tupleEle, parent, self = RefCntAutoPtr(this)]() {
                         // Since this callback will be destroyed after is is called,
 
-                        // i.e. self's parent my lose all the references, let's add an reference to keep self's parent valid
+                        // i.e. self's parent may lose all the references, let's add an reference to keep self's parent valid
                         tupleEle = parent;
 
                         if (--spDeps->pendingDependencyCount == 0) {
@@ -287,7 +287,7 @@ inline auto Task<T>::Unwrap(ITaskScheduler* scheduler) -> ValueType
 }
 
 template <class T>
-inline auto Task<T>::Unwrap() -> typename ValueType
+inline auto Task<T>::Unwrap() -> ValueType
 {
     return Unwrap(GetScheduler());
 }
